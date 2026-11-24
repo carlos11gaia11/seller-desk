@@ -1,0 +1,515 @@
+--- a/flutter/lib/common.dart
++++ b/flutter/lib/common.dart
+@@ -249,16 +249,16 @@
+   MyTheme._();
+ 
+   static const Color grayBg = Color(0xFFEFEFF2);
+-  static const Color accent = Color(0xFF0071FF);
+-  static const Color accent50 = Color(0x770071FF);
+-  static const Color accent80 = Color(0xAA0071FF);
++  static const Color accent = Color(0xFFFF8A24);
++  static const Color accent50 = Color(0x77FF8A24);
++  static const Color accent80 = Color(0xAAFF8A24);
+   static const Color canvasColor = Color(0xFF212121);
+   static const Color border = Color(0xFFCCCCCC);
+-  static const Color idColor = Color(0xFF00B6F0);
++  static const Color idColor = Color(0xFFFF8A24);
+   static const Color darkGray = Color.fromARGB(255, 148, 148, 148);
+   static const Color cmIdColor = Color(0xFF21790B);
+   static const Color dark = Colors.black87;
+-  static const Color button = Color(0xFF2C8CFF);
++  static const Color button = Color(0xFFFF8A24);
+   static const Color hoverBorder = Color(0xFF999999);
+ 
+   // ListTile
+@@ -452,7 +452,7 @@
+         style:
+             MenuStyle(backgroundColor: MaterialStatePropertyAll(Colors.white))),
+     colorScheme: ColorScheme.light(
+-        primary: Colors.blue, secondary: accent, background: grayBg),
++        primary: accent, secondary: accent, background: grayBg),
+     popupMenuTheme: PopupMenuThemeData(
+         color: Colors.white,
+         shape: RoundedRectangleBorder(
+@@ -560,7 +560,7 @@
+         style: MenuStyle(
+             backgroundColor: MaterialStatePropertyAll(Color(0xFF121212)))),
+     colorScheme: ColorScheme.dark(
+-      primary: Colors.blue,
++      primary: accent,
+       secondary: accent,
+       background: Color(0xFF24252B),
+     ),
+@@ -577,7 +577,9 @@
+   );
+ 
+   static ThemeMode getThemeModePreference() {
+-    return themeModeFromString(bind.mainGetLocalOption(key: kCommConfKeyTheme));
++    final value = bind.mainGetLocalOption(key: kCommConfKeyTheme);
++    if (value.isEmpty && isDesktop) return ThemeMode.dark;
++    return themeModeFromString(value);
+   }
+ 
+   static Future<void> changeDarkMode(ThemeMode mode) async {
+@@ -3061,7 +3063,7 @@
+ }
+ 
+ String getWindowName({WindowType? overrideType}) {
+-  final name = bind.mainGetAppNameSync();
++  const name = 'Seller Desk';
+   switch (overrideType ?? kWindowType) {
+     case WindowType.Main:
+       return name;
+@@ -3872,12 +3874,12 @@
+           ));
+ }
+ 
+-var imcomingOnlyHomeSize = Size(280, 300);
++var imcomingOnlyHomeSize = Size(480, 720);
+ Size getIncomingOnlyHomeSize() {
+   final magicWidth = isWindows ? 11.0 : 2.0;
+   final magicHeight = 10.0;
+   return imcomingOnlyHomeSize +
+-      Offset(magicWidth, kDesktopRemoteTabBarHeight + magicHeight);
++      Offset(magicWidth, kDesktopRemoteTabBarHeight + magicHeight + 24);
+ }
+ 
+ Size getIncomingOnlySettingsSize() {
+--- a/flutter/lib/desktop/pages/desktop_home_page.dart
++++ b/flutter/lib/desktop/pages/desktop_home_page.dart
+@@ -24,6 +24,7 @@
+ import 'package:window_manager/window_manager.dart';
+ import 'package:window_size/window_size.dart' as window_size;
+ import '../widgets/button.dart';
++import '../widgets/seller_desk.dart';
+ 
+ class DesktopHomePage extends StatefulWidget {
+   const DesktopHomePage({Key? key}) : super(key: key);
+@@ -32,7 +33,7 @@
+   State<DesktopHomePage> createState() => _DesktopHomePageState();
+ }
+ 
+-const borderColor = Color(0xFF2F65BA);
++const borderColor = Color(0xFFFF8A24);
+ 
+ class _DesktopHomePageState extends State<DesktopHomePage>
+     with AutomaticKeepAliveClientMixin, WidgetsBindingObserver {
+@@ -60,14 +61,31 @@
+     super.build(context);
+     final isIncomingOnly = bind.isIncomingOnly();
+     return _buildBlock(
+-        child: Row(
+-      crossAxisAlignment: CrossAxisAlignment.start,
+-      children: [
+-        buildLeftPane(context),
+-        if (!isIncomingOnly) const VerticalDivider(width: 1),
+-        if (!isIncomingOnly) Expanded(child: buildRightPane(context)),
+-      ],
+-    ));
++      child: LayoutBuilder(builder: (context, constraints) {
++        if (isIncomingOnly) return buildLeftPane(context);
++        if (bind.isOutgoingOnly()) return buildRightPane(context);
++        if (constraints.maxWidth < 1000) {
++          return DefaultTabController(
++            length: 2,
++            child: Column(children: [
++              const TabBar(tabs: [
++                Tab(text: 'Receber ajuda'),
++                Tab(text: 'Acessar computador'),
++              ]),
++              Expanded(child: TabBarView(children: [
++                buildLeftPane(context),
++                buildRightPane(context),
++              ])),
++            ]),
++          );
++        }
++        return Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
++          SizedBox(width: 480, child: buildLeftPane(context)),
++          const VerticalDivider(width: 1),
++          Expanded(child: buildRightPane(context)),
++        ]);
++      }),
++    );
+   }
+ 
+   Widget _buildBlock({required Widget child}) {
+@@ -85,13 +103,10 @@
+           alignment: Alignment.center,
+           child: loadPowered(context),
+         ),
+-      Align(
+-        alignment: Alignment.center,
+-        child: loadLogo(),
+-      ),
+-      buildTip(context),
++      const SellerDeskHeader(),
+       if (!isOutgoingOnly) buildIDBoard(context),
+       if (!isOutgoingOnly) buildPasswordBoard(context),
++      const SellerDeskTutorial(),
+       FutureBuilder<Widget>(
+         future: Future.value(
+             Obx(() => buildHelpCards(stateGlobal.updateUrl.value))),
+@@ -129,20 +144,22 @@
+     return ChangeNotifierProvider.value(
+       value: gFFI.serverModel,
+       child: Container(
+-        width: isIncomingOnly ? 280.0 : 200.0,
++        width: isIncomingOnly ? 480.0 : double.infinity,
+         color: Theme.of(context).colorScheme.background,
+         child: Stack(
+           children: [
+             Column(
+               children: [
+-                SingleChildScrollView(
+-                  controller: _leftPaneScrollController,
+-                  child: Column(
+-                    key: _childKey,
+-                    children: children,
++                Expanded(
++                  child: SingleChildScrollView(
++                    controller: _leftPaneScrollController,
++                    child: Column(
++                      key: _childKey,
++                      crossAxisAlignment: CrossAxisAlignment.stretch,
++                      children: children,
++                    ),
+                   ),
+-                ),
+-                Expanded(child: Container())
++                )
+               ],
+             ),
+             if (isOutgoingOnly)
+@@ -186,70 +203,9 @@
+   }
+ 
+   buildIDBoard(BuildContext context) {
+-    final model = gFFI.serverModel;
+-    return Container(
+-      margin: const EdgeInsets.only(left: 20, right: 11),
+-      height: 57,
+-      child: Row(
+-        crossAxisAlignment: CrossAxisAlignment.baseline,
+-        textBaseline: TextBaseline.alphabetic,
+-        children: [
+-          Container(
+-            width: 2,
+-            decoration: const BoxDecoration(color: MyTheme.accent),
+-          ).marginOnly(top: 5),
+-          Expanded(
+-            child: Padding(
+-              padding: const EdgeInsets.only(left: 7),
+-              child: Column(
+-                crossAxisAlignment: CrossAxisAlignment.start,
+-                children: [
+-                  Container(
+-                    height: 25,
+-                    child: Row(
+-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+-                      crossAxisAlignment: CrossAxisAlignment.start,
+-                      children: [
+-                        Text(
+-                          translate("ID"),
+-                          style: TextStyle(
+-                              fontSize: 14,
+-                              color: Theme.of(context)
+-                                  .textTheme
+-                                  .titleLarge
+-                                  ?.color
+-                                  ?.withOpacity(0.5)),
+-                        ).marginOnly(top: 5),
+-                        buildPopupMenu(context)
+-                      ],
+-                    ),
+-                  ),
+-                  Flexible(
+-                    child: GestureDetector(
+-                      onDoubleTap: () {
+-                        Clipboard.setData(
+-                            ClipboardData(text: model.serverId.text));
+-                        showToast(translate("Copied"));
+-                      },
+-                      child: TextFormField(
+-                        controller: model.serverId,
+-                        readOnly: true,
+-                        decoration: InputDecoration(
+-                          border: InputBorder.none,
+-                          contentPadding: EdgeInsets.only(top: 10, bottom: 10),
+-                        ),
+-                        style: TextStyle(
+-                          fontSize: 22,
+-                        ),
+-                      ).workaroundFreezeLinuxMint(),
+-                    ),
+-                  )
+-                ],
+-              ),
+-            ),
+-          ),
+-        ],
+-      ),
++    return SellerDeskCodeCard(
++      controller: gFFI.serverModel.serverId,
++      settings: buildPopupMenu(context),
+     );
+   }
+ 
+@@ -336,7 +292,7 @@
+                               contentPadding:
+                                   EdgeInsets.only(top: 14, bottom: 10),
+                             ),
+-                            style: TextStyle(fontSize: 15),
++                            style: TextStyle(fontSize: 24, fontWeight: FontWeight.w600),
+                           ).workaroundFreezeLinuxMint(),
+                         ),
+                       ),
+--- a/flutter/lib/desktop/pages/desktop_tab_page.dart
++++ b/flutter/lib/desktop/pages/desktop_tab_page.dart
+@@ -94,6 +94,17 @@
+     final tabWidget = Container(
+         child: Scaffold(
+             backgroundColor: Theme.of(context).colorScheme.background,
++            bottomNavigationBar: const SafeArea(
++              top: false,
++              child: Padding(
++                padding: EdgeInsets.symmetric(horizontal: 12, vertical: 5),
++                child: Text(
++                  'Aplicativo Modificado por Carlos Gaia',
++                  textAlign: TextAlign.center,
++                  style: TextStyle(fontSize: 10, color: Color(0xFF888888)),
++                ),
++              ),
++            ),
+             body: DesktopTab(
+               controller: tabController,
+               tail: Offstage(
+--- /dev/null
++++ b/flutter/lib/desktop/widgets/seller_desk.dart
+@@ -0,0 +1,169 @@
++import 'package:flutter/material.dart';
++import 'package:flutter/services.dart';
++
++import '../../common.dart';
++
++const _orange = Color(0xFFFF8A24);
++
++class SellerDeskHeader extends StatelessWidget {
++  const SellerDeskHeader({super.key});
++
++  @override
++  Widget build(BuildContext context) {
++    return const Padding(
++      padding: EdgeInsets.fromLTRB(24, 24, 24, 20),
++      child: Row(children: [
++        ColoredBox(
++          color: Color(0xFF0C0C0C),
++          child: Padding(
++            padding: EdgeInsets.symmetric(horizontal: 12, vertical: 2),
++            child: Text('S', style: TextStyle(fontSize: 34,
++              fontWeight: FontWeight.w900, color: _orange)),
++          ),
++        ),
++        SizedBox(width: 12),
++        Expanded(child: Column(
++          crossAxisAlignment: CrossAxisAlignment.start,
++          children: [
++            Text('Seller Desk', style: TextStyle(
++              fontSize: 28, fontWeight: FontWeight.w800)),
++            Text('Suporte remoto, sem complicação.',
++              style: TextStyle(fontSize: 13)),
++          ],
++        )),
++      ]),
++    );
++  }
++}
++
++class SellerDeskCodeCard extends StatelessWidget {
++  const SellerDeskCodeCard({super.key,
++    required this.controller, required this.settings});
++
++  final TextEditingController controller;
++  final Widget settings;
++
++  @override
++  Widget build(BuildContext context) {
++    return Container(
++      margin: const EdgeInsets.symmetric(horizontal: 20),
++      padding: const EdgeInsets.all(20),
++      decoration: BoxDecoration(
++        color: const Color(0xFF141414),
++        borderRadius: BorderRadius.circular(20),
++        border: Border.all(color: _orange, width: 1.5),
++      ),
++      child: ValueListenableBuilder<TextEditingValue>(
++        valueListenable: controller,
++        builder: (context, value, child) {
++          final raw = value.text.trim();
++          final ready = RegExp(r'^\d[\d\s]*$').hasMatch(raw);
++          final digits = raw.replaceAll(RegExp(r'\s'), '');
++          final display = ready
++              ? digits.replaceAllMapped(RegExp(r'.{1,3}'), (m) => '${m[0]} ').trim()
++              : raw.isEmpty ? 'Aguardando código…' : raw;
++          return Column(
++            crossAxisAlignment: CrossAxisAlignment.stretch,
++            children: [
++              Row(children: [
++                const Expanded(child: Text('SEU CÓDIGO DE ACESSO',
++                  style: TextStyle(color: _orange, fontSize: 12,
++                    fontWeight: FontWeight.w700, letterSpacing: 1.2))),
++                settings,
++              ]),
++              const SizedBox(height: 14),
++              Semantics(
++                label: 'Seu código de acesso: $raw',
++                excludeSemantics: true,
++                child: FittedBox(
++                  fit: BoxFit.scaleDown,
++                  alignment: Alignment.centerLeft,
++                  child: Text(display, style: TextStyle(
++                    fontSize: ready ? 64 : 22,
++                    height: 1.15,
++                    fontWeight: FontWeight.w800,
++                    color: Colors.white,
++                  )),
++                ),
++              ),
++              const SizedBox(height: 12),
++              const Text('Passe este código para quem vai ajudar você.',
++                style: TextStyle(color: Colors.white70, fontSize: 14)),
++              const SizedBox(height: 18),
++              ElevatedButton.icon(
++                style: ElevatedButton.styleFrom(
++                  backgroundColor: _orange,
++                  foregroundColor: Colors.black,
++                  padding: const EdgeInsets.symmetric(vertical: 16),
++                ),
++                onPressed: ready ? () async {
++                  try {
++                    await Clipboard.setData(ClipboardData(text: digits));
++                    showToast('Código copiado');
++                  } catch (_) {
++                    showToast('Não foi possível copiar. Leia o código acima.');
++                  }
++                } : null,
++                icon: const Icon(Icons.copy_rounded, size: 18),
++                label: const Text('Copiar código'),
++              ),
++            ],
++          );
++        },
++      ),
++    );
++  }
++}
++
++class SellerDeskTutorial extends StatelessWidget {
++  const SellerDeskTutorial({super.key});
++
++  @override
++  Widget build(BuildContext context) {
++    return Container(
++      margin: const EdgeInsets.fromLTRB(20, 4, 20, 20),
++      padding: const EdgeInsets.all(18),
++      decoration: BoxDecoration(
++        border: Border.all(color: _orange.withOpacity(0.35)),
++        borderRadius: BorderRadius.circular(16),
++      ),
++      child: const Column(
++        crossAxisAlignment: CrossAxisAlignment.start,
++        children: [
++          Text('Como receber ajuda', style: TextStyle(
++            fontSize: 17, fontWeight: FontWeight.w700)),
++          SizedBox(height: 12),
++          _Step('1', 'Deixe o Seller Desk aberto e conectado à internet.'),
++          _Step('2', 'Envie seu código para a pessoa de confiança que vai ajudar.'),
++          _Step('3', 'Aceite a solicitação de acesso ou informe a senha, se solicitada.'),
++          SizedBox(height: 8),
++          Text('Para ajudar alguém: abra “Acessar computador” e digite o código recebido. Em janelas maiores, use o painel ao lado.',
++            style: TextStyle(fontSize: 12, height: 1.4)),
++          SizedBox(height: 10),
++          Text('Você pode encerrar a sessão quando quiser.',
++            style: TextStyle(color: _orange, fontSize: 12)),
++        ],
++      ),
++    );
++  }
++}
++
++class _Step extends StatelessWidget {
++  const _Step(this.number, this.text);
++  final String number;
++  final String text;
++
++  @override
++  Widget build(BuildContext context) {
++    return Padding(
++      padding: const EdgeInsets.only(bottom: 10),
++      child: Row(crossAxisAlignment: CrossAxisAlignment.start, children: [
++        Text(number, style: const TextStyle(
++          color: _orange, fontWeight: FontWeight.w800)),
++        const SizedBox(width: 12),
++        Expanded(child: Text(text,
++          style: const TextStyle(fontSize: 13, height: 1.4))),
++      ]),
++    );
++  }
++}
+--- a/flutter/lib/desktop/widgets/tabbar_widget.dart
++++ b/flutter/lib/desktop/widgets/tabbar_widget.dart
+@@ -649,12 +649,20 @@
+                       child: Row(children: [
+                         Offstage(
+                           offstage: !showLogo,
+-                          child: loadIcon(16),
++                          child: const ColoredBox(
++                            color: Color(0xFF0C0C0C),
++                            child: Padding(
++                              padding: EdgeInsets.symmetric(horizontal: 4),
++                              child: Text('S', style: TextStyle(fontSize: 14,
++                                  fontWeight: FontWeight.w900,
++                                  color: MyTheme.accent)),
++                            ),
++                          ),
+                         ),
+                         Offstage(
+                             offstage: !showTitle,
+                             child: const Text(
+-                              "RustDesk",
++                              "Seller Desk",
+                               style: TextStyle(fontSize: 13),
+                             ).marginOnly(left: 2))
+                       ]).marginOnly(
+--- a/flutter/windows/runner/Runner.rc
++++ b/flutter/windows/runner/Runner.rc
+@@ -90,12 +90,12 @@
+         BLOCK "040904e4"
+         BEGIN
+             VALUE "CompanyName", "Purslane Tech Pte. Ltd." "\0"
+-            VALUE "FileDescription", "RustDesk Remote Desktop" "\0"
++            VALUE "FileDescription", "Seller Desk Remote Desktop" "\0"
+             VALUE "FileVersion", VERSION_AS_STRING "\0"
+             VALUE "InternalName", "rustdesk" "\0"
+             VALUE "LegalCopyright", "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved." "\0"
+             VALUE "OriginalFilename", "rustdesk.exe" "\0"
+-            VALUE "ProductName", "RustDesk" "\0"
++            VALUE "ProductName", "Seller Desk" "\0"
+             VALUE "ProductVersion", VERSION_AS_STRING "\0"
+         END
+     END
+--- a/libs/portable/Cargo.toml
++++ b/libs/portable/Cargo.toml
+@@ -28,9 +28,9 @@
+ 
+ [package.metadata.winres]
+ LegalCopyright = "Copyright © 2026 Purslane Tech Pte. Ltd. All rights reserved."
+-ProductName = "RustDesk"
+-OriginalFilename = "rustdesk.exe"
+-FileDescription = "RustDesk Remote Desktop"
++ProductName = "Seller Desk"
++OriginalFilename = "SellerDesk-Portable.exe"
++FileDescription = "Seller Desk Portable"
+ #ProductVersion = ""
+ 
+ [target.'cfg(target_os="windows")'.build-dependencies]

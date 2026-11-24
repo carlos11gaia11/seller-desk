@@ -1,0 +1,13 @@
+SELLER DESK PORTABLE
+
+1. Abra SellerDesk-Portable.exe. Nao precisa instalar.
+2. Mantenha o aplicativo aberto e envie seu codigo para a pessoa que vai ajudar.
+3. Aceite a solicitacao ou informe a senha quando solicitado.
+4. Encerre a sessao ao terminar.
+
+Compartilhe o acesso apenas com pessoas em quem voce confia.
+O programa precisa de internet. Ele extrai os arquivos necessarios
+automaticamente e pode guardar configuracoes neste computador.
+
+Aplicativo Modificado por Carlos Gaia
+Baseado em RustDesk. Licenca e codigo-fonte: consulte o repositorio Seller Desk.

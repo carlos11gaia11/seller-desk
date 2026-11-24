@@ -64,4 +64,3 @@ Baseado em RustDesk, licenciado sob AGPL-3.0. A licença original está em
 `LICENSE`. Os avisos e créditos do código original permanecem preservados.
 Este repositório contém as alterações e a referência exata para reconstruir
 o código-fonte correspondente. Personalização por Carlos Gaia.
-
